@@ -1,48 +1,66 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import select 
+from sqlalchemy import select
+
+from app.models import Transaction, TransactionType, User, UserSnapshot
+from app.schemas import TransactionCreate, TransactionResponse
 
 
-async def create_transaction(db: AsyncSession, data: TransactionCreate) -> TransactionResponse:
-    async with db.begin():
-        try:
-            # Attempt to insert the new transaction
-            new_transaction = Transaction(
-                idempotency_key=data.idempotency_key,
-                user_id=data.user_id,
-                type=data.type,
-                amount=data.amount,
-                extra_data=data.extra_data
-            )
-            db.add(new_transaction)
-            await db.flush()  # Flush to get the ID of the new transaction
+async def create_transaction(
+    db: AsyncSession, data: TransactionCreate
+) -> tuple[TransactionResponse, bool]:
+    """Returns (response, is_created)."""
+    result = await db.execute(
+        select(Transaction).where(Transaction.idempotency_key == data.idempotency_key)
+    )
+    existing = result.scalar_one_or_none()
+    if existing:
+        return TransactionResponse.model_validate(existing), False
 
-        except IntegrityError as e:
-            # Handle unique constraint violation (idempotency key)
-            if "unique constraint" in str(e.orig):
-                existing_transaction = await db.execute(
-                    select(Transaction).where(Transaction.idempotency_key == data.idempotency_key)
-                )
-                existing_transaction = existing_transaction.scalar_one_or_none()
-                if existing_transaction:
-                    return TransactionResponse.from_orm(existing_transaction)
-            raise e  # Re-raise if it's a different integrity error
+    user = await db.get(User, data.user_id)
+    if not user:
+        user = User(id=data.user_id)
+        db.add(user)
 
-        # Update user snapshot atomically
-        user_snapshot = await db.execute(
-            select(UserSnapshot).where(UserSnapshot.user_id == data.user_id).with_for_update()
+    result = await db.execute(
+        select(UserSnapshot).where(UserSnapshot.user_id == data.user_id).with_for_update()
+    )
+    snapshot = result.scalar_one_or_none()
+    if not snapshot:
+        snapshot = UserSnapshot(user_id=data.user_id)
+        db.add(snapshot)
+
+    new_tx = Transaction(
+        idempotency_key=data.idempotency_key,
+        user_id=data.user_id,
+        type=TransactionType(data.type),
+        amount=data.amount,
+        extra_data=data.extra_data,
+    )
+    db.add(new_tx)
+
+    try:
+        await db.flush()
+    except IntegrityError:
+        await db.rollback()
+        result = await db.execute(
+            select(Transaction).where(Transaction.idempotency_key == data.idempotency_key)
         )
-        user_snapshot = user_snapshot.scalar_one_or_none()
+        return TransactionResponse.model_validate(result.scalar_one()), False
 
-        if not user_snapshot:
-            # Create a new snapshot if it doesn't exist
-            user_snapshot = UserSnapshot(user_id=data.user_id, total_earned=0, total_spent=0)
-            db.add(user_snapshot)
+    tx_type = TransactionType(data.type)
+    if tx_type == TransactionType.earn:
+        snapshot.total_earned += data.amount
+        snapshot.net_balance += data.amount
+    elif tx_type == TransactionType.spend:
+        snapshot.total_spent += data.amount
+        snapshot.net_balance -= data.amount
+    elif tx_type == TransactionType.bonus:
+        snapshot.bonus_count += 1
+        snapshot.net_balance += data.amount
 
-        # Update aggregates based on transaction type
-        if data.type == "earn":
-            user_snapshot.total_earned += data.amount
-        elif data.type == "spend":
-            user_snapshot.total_spent += data.amount
+    snapshot.transaction_count += 1
 
-    return TransactionResponse.from_orm(new_transaction)
+    await db.commit()
+
+    return TransactionResponse.model_validate(new_tx), True
