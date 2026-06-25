@@ -1,8 +1,10 @@
 from fastapi import FastAPI
 
 from app.database import engine
+from app.routers.transaction import router as transaction_router
 
 app = FastAPI(title="RankGuard")
+app.include_router(transaction_router)
 
 
 @app.on_event("shutdown")
