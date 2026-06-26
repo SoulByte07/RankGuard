@@ -12,7 +12,7 @@ async def compute_rankings(db: AsyncSession) -> None:
     result = await db.execute(select(UserSnapshot))
     snapshots = result.scalars().all()
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     entries: list[tuple[object, Decimal, datetime]] = []
     for s in snapshots:
         days_since = (now - s.last_activity).days
