@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -16,6 +17,10 @@ async def create_transaction_endpoint(
 ):
     try:
         resp, is_created = await create_transaction(db, data)
+    except IntegrityError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Constraint violation"
+        )
     except HTTPException:
         raise
     except Exception as e:
