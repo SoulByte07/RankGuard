@@ -1,5 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +13,7 @@ router = APIRouter()
 async def create_transaction_endpoint(
     data: TransactionCreate,
     db: AsyncSession = Depends(get_db),
+    response: Response = None,
 ):
     try:
         resp, is_created = await create_transaction(db, data)
@@ -28,7 +28,7 @@ async def create_transaction_endpoint(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
 
-    return JSONResponse(
-        content=resp.model_dump(mode="json"),
-        status_code=status.HTTP_201_CREATED if is_created else status.HTTP_200_OK,
+    response.status_code = (
+        status.HTTP_201_CREATED if is_created else status.HTTP_200_OK
     )
+    return resp
