@@ -23,7 +23,8 @@ async def create_transaction(
     db: AsyncSession, data: TransactionCreate
 ) -> tuple[TransactionResponse, bool]:
     """Returns (response, is_created)."""
-    async with _get_user_lock(data.user_id):
+    lock = await _get_user_lock(data.user_id)
+    async with lock:
         result = await db.execute(
             select(Transaction).where(Transaction.idempotency_key == data.idempotency_key)
         )
