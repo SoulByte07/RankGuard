@@ -1,42 +1,74 @@
-from sqlalchemy import create_engine, text
-from sqlalchemy.ext.asyncio.session import AsyncSession
-def rankFormula(total_earned, total_spent, transaction_count, bonus_count, days_since_last_activity):
-   score: flaot = (total_earned * 1.0)
-           + (total_spent * 0.5)
-           + (transaction_count * 10)
-           + (bonus_count * 50)
-           - (days_since_last_activity * 0.1)   # age penalty
-   return score
+from datetime import datetime, timezone
+from decimal import Decimal
 
-async def compute_rankings(db:AsyncSession):
-    """
-  - Read all `user_snapshots`, compute score for each
-  - Assign rank (ORDER BY score DESC, last_activity ASC)
-  - Upsert into `rankings` table (or refresh materialised view)
-  """
-    result = await db.execute(text("SELECT * FROM user_snapshots"))
-    user_snapshots = result.fetchall()
-    for snapshot in user_snapshots:
-        user_id = snapshot[0]
-        total_earned = snapshot[1]
-        total_spent = snapshot[2]
-        transaction_count = snapshot[3]
-        bonus_count = snapshot[4]
-        days_since_last_activity = snapshot[5]
-        score = rankFormula(total_earned, total_spent, transaction_count, bonus_count, days_since_last_activity)
-        await db.execute(text("INSERT INTO rankings (user_id, score) VALUES (:user_id, :score) ON CONFLICT (user_id) DO UPDATE SET score = :score"))
-        await db.commit()
+from sqlalchemy import delete, func as sa_func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-"""
-  - Read from `rankings` table ordered by rank
-  - Join `user_snapshots` for display fields
-"""
-async def get_rankings(db: AsyncSession):
-    result = await db.execute(text("SELECT * FROM rankings ORDER BY score DESC"))
-    rankings = result.fetchall()
-    return rankings
+from app.models import Ranking, UserSnapshot
+from app.schemas import RankingEntry
 
-async def get_user_snapshot(db: AsyncSession, user_id: int):
-    result = await db.execute(text("SELECT * FROM user_snapshots WHERE user_id = :user_id"))
-    snapshot = result.fetchone()
-    return snapshot
+
+async def compute_rankings(db: AsyncSession) -> None:
+    result = await db.execute(select(UserSnapshot))
+    snapshots = result.scalars().all()
+
+    now = datetime.now(timezone.utc)
+    entries: list[tuple[object, Decimal, datetime]] = []
+    for s in snapshots:
+        days_since = (now - s.last_activity).days
+        score = (
+            s.total_earned * Decimal("1.0")
+            + s.total_spent * Decimal("0.5")
+            + Decimal(s.transaction_count) * Decimal("10")
+            + Decimal(s.bonus_count) * Decimal("50")
+            - Decimal(days_since) * Decimal("0.1")
+        )
+        entries.append((s.user_id, score, s.last_activity))
+
+    entries.sort(key=lambda x: (-x[1], x[2]))
+
+    await db.execute(delete(Ranking))
+    db.add_all(
+        [
+            Ranking(user_id=uid, score=score, rank=i)
+            for i, (uid, score, _) in enumerate(entries, start=1)
+        ]
+    )
+    await db.commit()
+
+
+async def get_rankings(
+    db: AsyncSession, limit: int = 50, offset: int = 0
+) -> tuple[list[RankingEntry], int]:
+    count_result = await db.execute(select(sa_func.count()).select_from(Ranking))
+    total = count_result.scalar() or 0
+
+    if total == 0:
+        await compute_rankings(db)
+        count_result = await db.execute(select(sa_func.count()).select_from(Ranking))
+        total = count_result.scalar() or 0
+        if total == 0:
+            return [], 0
+
+    result = await db.execute(
+        select(Ranking, UserSnapshot)
+        .join(UserSnapshot, Ranking.user_id == UserSnapshot.user_id)
+        .order_by(Ranking.rank)
+        .offset(offset)
+        .limit(limit)
+    )
+    rows = result.all()
+
+    entries = [
+        RankingEntry(
+            rank=ranking.rank,
+            user_id=ranking.user_id,
+            score=ranking.score,
+            total_earned=snapshot.total_earned,
+            total_spent=snapshot.total_spent,
+            transaction_count=snapshot.transaction_count,
+        )
+        for ranking, snapshot in rows
+    ]
+
+    return entries, total
