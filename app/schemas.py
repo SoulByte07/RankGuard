@@ -35,3 +35,15 @@ class SummaryResponse(BaseModel):
     bonus_count: int
     rank: int | None
     last_activity: datetime
+
+class RankingEntry(BaseModel):
+    rank: int
+    user_id: UUID
+    score: Decimal
+    total_earned: Decimal
+    total_spent: Decimal
+    transaction_count: int
+
+class RankingListResponse(BaseModel):
+    count: int
+    results: list[RankingEntry]
