@@ -23,3 +23,14 @@ class TransactionResponse(BaseModel):
     type: str
     amount: Decimal
     created_at: datetime
+
+class SummaryResponse(BaseModel):
+     user_id: UUID
+     total_earned: Decimal
+     total_spent: Decimal
+     net_balance: Decimal
+     transaction_count: int
+     bonus_count: int
+     rank: int | None
+     last_activity: datetime
+ 
