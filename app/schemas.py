@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
 class TransactionCreate(BaseModel):
@@ -24,6 +24,11 @@ class TransactionResponse(BaseModel):
     amount: Decimal
     created_at: datetime
 
+    @field_serializer("amount")
+    def serialize_amount(self, v: Decimal) -> float:
+        return float(v)
+
+
 class SummaryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -36,6 +41,11 @@ class SummaryResponse(BaseModel):
     rank: int | None
     last_activity: datetime
 
+    @field_serializer("total_earned", "total_spent", "net_balance")
+    def serialize_decimal(self, v: Decimal) -> float:
+        return float(v)
+
+
 class RankingEntry(BaseModel):
     rank: int
     user_id: UUID
@@ -43,6 +53,11 @@ class RankingEntry(BaseModel):
     total_earned: Decimal
     total_spent: Decimal
     transaction_count: int
+
+    @field_serializer("score", "total_earned", "total_spent")
+    def serialize_decimal(self, v: Decimal) -> float:
+        return float(v)
+
 
 class RankingListResponse(BaseModel):
     count: int
