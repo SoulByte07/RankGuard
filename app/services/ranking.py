@@ -12,10 +12,13 @@ async def compute_rankings(db: AsyncSession) -> None:
     result = await db.execute(select(UserSnapshot))
     snapshots = result.scalars().all()
 
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = datetime.now(timezone.utc)
     entries: list[tuple[object, Decimal, datetime]] = []
     for s in snapshots:
-        days_since = (now - s.last_activity).days
+        last = s.last_activity
+        if last.tzinfo is None:
+            last = last.replace(tzinfo=timezone.utc)
+        days_since = (now - last).days
         score = (
             s.total_earned * Decimal("1.0")
             + s.total_spent * Decimal("0.5")
