@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RankGuard — Leaderboard & Transaction Engine</title>
+    <meta name="description" content="Real-time transaction processing, user aggregate analytics, and multi-factor ranking leaderboard.">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- SVG Gradients definitions for logo & decorations -->
+    <svg style="position: absolute; width: 0; height: 0;" width="0" height="0" version="1.1" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+            <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#6366f1" />
+                <stop offset="100%" stop-color="#8b5cf6" />
+            </linearGradient>
+        </defs>
+    </svg>
+
+    <header>
+        <div class="header-container">
+            <div class="logo">
+                <!-- Shield and leaderboard visual -->
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2L3 7V12C3 17.5 7.2 21.3 12 22C16.8 21.3 21 17.5 21 12V7L12 2Z" fill="url(#logo-grad)"/>
+                    <path d="M9 11L11 13L15 9" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                RankGuard
+            </div>
+            <div class="system-status">
+                <span class="status-dot"></span>
+                <span>Engine Connected</span>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <!-- Sidebar: Transaction Input & User Lookup -->
+        <div class="sidebar-column">
+            
+            <!-- Submit Transaction Card -->
+            <section class="card" id="transaction-section">
+                <h2 class="card-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    New Transaction
+                </h2>
+                <form id="transaction-form" novalidate>
+                    <div class="form-group">
+                        <label for="tx-user-id">User ID (UUID)</label>
+                        <div class="input-with-action">
+                            <input type="text" id="tx-user-id" placeholder="00000000-0000-0000-0000-000000000000" required>
+                            <button type="button" class="btn-secondary-action" id="btn-generate-user" title="Generate New UUID">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group row-layout">
+                        <div>
+                            <label for="tx-type">Transaction Type</label>
+                            <select id="tx-type" required>
+                                <option value="earn">Earn</option>
+                                <option value="spend">Spend</option>
+                                <option value="bonus">Bonus</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="tx-amount">Amount ($)</label>
+                            <input type="number" id="tx-amount" min="0.01" step="0.01" placeholder="100.00" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="tx-idempotency">Idempotency Key</label>
+                        <div class="input-with-action">
+                            <input type="text" id="tx-idempotency" placeholder="Click generate or enter unique key" required>
+                            <button type="button" class="btn-secondary-action" id="btn-generate-idempotency" title="Generate Idempotency Key">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="tx-extra-data">Extra Data (Optional JSON)</label>
+                        <textarea id="tx-extra-data" rows="3" placeholder='{ "device": "mobile", "channel": "referral" }'></textarea>
+                    </div>
+
+                    <button type="submit" class="btn" id="btn-submit-tx">
+                        <span>Process Transaction</span>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </button>
+                </form>
+            </section>
+
+            <!-- User Summary Card -->
+            <section class="card" id="summary-section">
+                <h2 class="card-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                    User Summary Lookup
+                </h2>
+                <form id="summary-form">
+                    <div class="form-group">
+                        <label for="lookup-user-id">User ID (UUID)</label>
+                        <div class="input-with-action">
+                            <input type="text" id="lookup-user-id" placeholder="00000000-0000-0000-0000-000000000000" required>
+                            <button type="submit" class="btn-secondary-action" id="btn-lookup" title="Search User">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+
+                <!-- Detailed Summary Results Container -->
+                <div class="summary-container" id="summary-result-container" style="display: none;">
+                    <div class="summary-grid">
+                        <div class="summary-item span-2">
+                            <span class="summary-label">Ranking Position</span>
+                            <span class="summary-value highlight" id="summary-rank">—</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Net Balance</span>
+                            <span class="summary-value" id="summary-balance">$0.00</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Total Earned</span>
+                            <span class="summary-value earn" id="summary-earned">$0.00</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Total Spent</span>
+                            <span class="summary-value spend" id="summary-spent">$0.00</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Transactions</span>
+                            <span class="summary-value" id="summary-tx-count">0</span>
+                        </div>
+                    </div>
+                    <div class="summary-meta" id="summary-last-activity">
+                        Last Active: —
+                    </div>
+                </div>
+                
+                <div class="empty-state" id="summary-empty">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="16" x2="12" y2="12"></line>
+                        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                    </svg>
+                    <span>Enter a User ID above to fetch real-time wallet aggregates and ranking position.</span>
+                </div>
+            </section>
+        </div>
+
+        <!-- Main Column: Leaderboard / Rankings -->
+        <section class="card" id="leaderboard-section">
+            <div class="table-header-row">
+                <h2>Real-Time Leaderboard</h2>
+                <div class="table-actions">
+                    <button type="button" class="btn-secondary-action" id="btn-refresh-leaderboard" title="Refresh Now">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                        </svg>
+                    </button>
+                    <button type="button" class="btn" id="btn-compute-leaderboard" style="padding: 0.5rem 1rem; font-size: 0.85rem; width: auto; box-shadow: none;">
+                        <span>Recompute Cache</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table id="leaderboard-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 80px;">Rank</th>
+                            <th>User ID</th>
+                            <th>Score</th>
+                            <th>Total Earned</th>
+                            <th>Total Spent</th>
+                            <th>Tx Count</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboard-body">
+                        <!-- Populated by JavaScript -->
+                    </tbody>
+                </table>
+                <div class="empty-state" id="leaderboard-empty" style="display: none;">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
+                    </svg>
+                    <span>No entries found. Make sure transactions are processed and the ranking cache is computed.</span>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Toast alerts container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>
