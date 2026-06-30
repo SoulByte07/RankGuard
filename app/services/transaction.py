@@ -1,4 +1,5 @@
 import asyncio
+from collections import OrderedDict
 from uuid import UUID
 
 from sqlalchemy import select
@@ -8,14 +9,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Transaction, TransactionType, User, UserSnapshot
 from app.schemas import TransactionCreate, TransactionResponse
 
-_user_locks: dict[UUID, asyncio.Lock] = {}
+_user_locks: OrderedDict[UUID, asyncio.Lock] = OrderedDict()
 _lock_lock = asyncio.Lock()
+_MAX_USER_LOCKS = 10_000
 
 
 async def _get_user_lock(user_id: UUID) -> asyncio.Lock:
     async with _lock_lock:
         if user_id not in _user_locks:
+            if len(_user_locks) >= _MAX_USER_LOCKS:
+                _user_locks.popitem(last=False)
             _user_locks[user_id] = asyncio.Lock()
+        else:
+            _user_locks.move_to_end(user_id)
         return _user_locks[user_id]
 
 
