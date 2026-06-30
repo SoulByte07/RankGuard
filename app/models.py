@@ -1,6 +1,7 @@
 import enum
 import uuid
 from datetime import datetime
+from decimal import Decimal
 
 from sqlalchemy import DateTime, Enum as SAEnum, ForeignKey, Integer, JSON, Numeric, Uuid, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -33,7 +34,7 @@ class Transaction(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id"), nullable=False, index=True)
     idempotency_key: Mapped[str] = mapped_column(nullable=False, unique=True)
     type: Mapped[TransactionType] = mapped_column(SAEnum(TransactionType, name="transaction_type"), nullable=False)
-    amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     extra_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -42,9 +43,9 @@ class UserSnapshot(Base):
     __tablename__ = "user_snapshots"
 
     user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id"), primary_key=True)
-    total_earned: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
-    total_spent: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
-    net_balance: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    total_earned: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    total_spent: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    net_balance: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     transaction_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     bonus_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     last_activity: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
@@ -57,7 +58,7 @@ class Ranking(Base):
     __tablename__ = "rankings"
 
     user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id"), primary_key=True)
-    score: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    score: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     rank: Mapped[int] = mapped_column(Integer, nullable=False)
     computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
