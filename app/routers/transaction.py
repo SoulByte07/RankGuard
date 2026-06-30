@@ -12,8 +12,8 @@ router = APIRouter()
 @router.post("/transaction", response_model=TransactionResponse)
 async def create_transaction_endpoint(
     data: TransactionCreate,
+    response: Response,
     db: AsyncSession = Depends(get_db),
-    response: Response = None,
 ):
     try:
         resp, is_created = await create_transaction(db, data)
