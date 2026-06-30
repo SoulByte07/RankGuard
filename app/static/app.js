@@ -44,10 +44,11 @@ document.addEventListener('DOMContentLoaded', () => {
             iconSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="toast-icon"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>`;
         }
 
-        toast.innerHTML = `
-            ${iconSvg}
-            <span class="toast-message">${message}</span>
-        `;
+        const msgSpan = document.createElement('span');
+        msgSpan.className = 'toast-message';
+        msgSpan.textContent = message;
+        toast.innerHTML = iconSvg;
+        toast.appendChild(msgSpan);
         
         toastContainer.appendChild(toast);
         
@@ -60,11 +61,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 4000);
     }
 
-    // UUID Generator v4
     function generateUUID() {
-        return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
-            (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
-        );
+        return crypto.randomUUID();
     }
 
     // Populate Fields
@@ -115,6 +113,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        const amount = parseFloat(amountStr);
+        if (isNaN(amount) || amount <= 0) {
+            showToast('Amount must be a positive number', 'error');
+            return;
+        }
+
         let extraData = null;
         try {
             extraData = getExtraData();
@@ -127,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
             idempotency_key: idempotencyKey,
             user_id: userId,
             type: type,
-            amount: parseFloat(amountStr),
+            amount: amount,
             extra_data: extraData
         };
 
