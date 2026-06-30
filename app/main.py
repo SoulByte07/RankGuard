@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import engine
@@ -26,3 +27,8 @@ async def shutdown():
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+# Mount static files last so API routes take precedence
+app.mount("/", StaticFiles(directory="app/static", html=True), name="static")
+
