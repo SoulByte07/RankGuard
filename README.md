@@ -116,6 +116,15 @@ pytest -v --asyncio-mode=auto
 
 Tests use an in-memory SQLite database via `aiosqlite` — no external dependencies required.
 
+## Trade-offs & Limitations
+
+- **Single-process locks** — Per-user `asyncio.Lock` is in-process; horizontal scaling requires Redis or DB-level distributed locking.
+- **Ranking recompute** — `POST /ranking/compute` does a full table scan + delete-all. Not suitable for frequent refresh under heavy write load; a materialised view or incremental update would scale better.
+- **In-memory rate limiter** — Per-IP counters live in process memory; resets on restart and doesn't work across multiple app instances. Swap to Redis for production multi-replica deployments.
+- **Idempotency keys persist forever** — No TTL or cleanup on the `transactions` table. Under sustained throughput, the uniqueness constraint and index size grow unbounded.
+- **SQLite test DB** — Fast and zero-config, but means PostgreSQL-specific features (e.g. partial indexes, `RETURNING`, `ON CONFLICT`) aren't exercised in tests.
+- **No authentication** — All endpoints are unauthenticated. Add API key middleware for production use.
+
 ## License
 
 MIT
