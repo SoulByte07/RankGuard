@@ -1,13 +1,10 @@
 services:
   db:
     image: bitnami/postgresql:latest
-    environment:
-      POSTGRESQL_POSTGRES_PASSWORD: postgres
-      POSTGRESQL_USERNAME: postgres
-      POSTGRESQL_PASSWORD: postgres
-      POSTGRESQL_DATABASE: rankguard
+    env_file:
+      - .env
     ports:
-      - "5432:5432"
+      - "${DB_PORT}:5432"
     volumes:
       - pgdata:/bitnami/postgresql
     healthcheck:
@@ -18,11 +15,13 @@ services:
 
   app:
     build: .
+    env_file:
+      - .env
     ports:
-      - "8000:8000"
+      - "${PORT}:8000"
     command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     environment:
-      DATABASE_URL: "postgresql+asyncpg://postgres:postgres@db:5432/rankguard"
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRESQL_USERNAME}:${POSTGRESQL_PASSWORD}@db:5432/${POSTGRESQL_DATABASE}
     depends_on:
       db:
         condition: service_healthy
